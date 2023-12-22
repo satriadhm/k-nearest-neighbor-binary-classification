@@ -33,21 +33,14 @@ target = df["y"]
 
 features.head()
 
-"""#Folding
-memisahkan dataframe menjadi beberapa bagian untuk melihat karakteristik data
+"""#Normalisasi
+###mengubah jarak data dari 0-1 agar jarak tidak terlalu timpang
+
 """
 
-#mengambil quarter pertama untuk testing dan 3 quarter sisanya untuk training
-fold_first_quarter = (df.iloc[0:74].reset_index(drop=True),              df.iloc[74:296].reset_index(drop=True))
+df = (df - df.min()) / (df.max()-df.min())
 
-#mengambil 50 persen data dengan menyilang masing-masing untuk training dan testing
-fold_first_half = (pd.concat([df.iloc[0:74],df.iloc[148:222]]).reset_index(drop=True), pd.concat([df.iloc[74:148],df.iloc[222:296]]).reset_index(drop=True))
-fold_second_half = (pd.concat([df.iloc[74:148],df.iloc[148:222]]).reset_index(drop=True), pd.concat([df.iloc[0:74],df.iloc[222:296]]).reset_index(drop=True))
-
-#mengambil quarter akhir untuk testing dan quarter awal hingga quarter ke-tiga untuk training
-fold_last_quarter = (df.iloc[0:222].reset_index(drop=True),           df.iloc[222:296].reset_index(drop=True))
-
-fold_first_quarter
+features.describe()
 
 features.iloc[0] - features.iloc[1]
 
@@ -57,25 +50,20 @@ features.iloc[0] - features.iloc[1]
 
 def euclidean_distance(x, y):
     dist = 0
-    for i in range(len(y)):
-        dist += (x[i] - y[i])**2
+    for xi, yi in zip(x, y):
+        dist += (xi - yi)**2
+
+    return dist ** 0.5
 
     return dist ** (1/2)
 
+import numpy as np
+
 def manhattan_distance(x, y):
-    return (x-y).abs().sum()
+    return np.abs(np.array(x) - np.array(y)).sum()
 
-print(manhattan_distance(features.iloc[0], features.iloc[1]))
+print((features.iloc[0], features.iloc[1]))
 print(euclidean_distance(features.iloc[0], features.iloc[1]))
-
-"""#Normalisasi
-###mengubah jarak data dari 0-1 agar jarak tidak terlalu timpang
-
-"""
-
-features = (features - features.min()) / (features.max()-features.min())
-
-features.describe()
 
 def predict(x,k,X,y):
   distance = []
@@ -87,29 +75,40 @@ def predict(x,k,X,y):
   data['clas'] = y
   data.sort_values(by="distance").reset_index(drop=True)
 
-  y_pred = data.iloc[:k].clas.mode()
+  y_pred = data.iloc[:k].clas.mode().values
 
   return y_pred[0]
 
-predict(features.iloc[6],1, features, target)
+import numpy as np
 
-def akurasi(y_pred,y_true):
-    n = len(y_pred)
-    benar = 0
-    for i in range(n):
-       if y_pred[i] == y_true[i]:
-        benar += 1
-    return benar /n * 100
+def akurasi(y_pred, y_true):
+    return np.mean(y_pred == y_true) * 100
 
-akurasi(target, target)
+"""#Folding
+memisahkan dataframe menjadi beberapa bagian untuk melihat karakteristik data
+"""
+
+# Menentukan ukuran setiap bagian
+size = len(df)
+size_per_fold = size // 3
+
+# Mengambil bagian pertama untuk testing dan dua bagian sisanya untuk training
+fold_first = (df.iloc[:size_per_fold].reset_index(drop=True), df.iloc[size_per_fold:].reset_index(drop=True))
+
+# Mengambil 50 persen data dengan menyilang masing-masing untuk training dan testing
+fold_second = (pd.concat([df.iloc[:size_per_fold], df.iloc[2*size_per_fold:]]).reset_index(drop=True),
+               pd.concat([df.iloc[size_per_fold:2*size_per_fold]]).reset_index(drop=True))
+
+# Mengambil quarter akhir untuk testing dan dua quarter awal untuk training
+fold_third = (df.iloc[size_per_fold:].reset_index(drop=True), df.iloc[:2*size_per_fold].reset_index(drop=True))
 
 accurate = []
 
-for k in range(1,100):
-    for fold in [fold_first_quarter, fold_first_half, fold_second_half, fold_last_quarter]:
+for k in range(1,22,2):
+    for fold in [fold_first, fold_second, fold_third]:
         train, test = fold
-        X_train, y_train = train.drop('y', axis=1), train.y
-        X_test, y_test = test.drop('y', axis=1), test.y
+        X_train, y_train = train.drop(['y', 'id'], axis=1), train.y
+        X_test, y_test = test.drop(['y', 'id'], axis=1), test.y
 
         y_preds = []
         for _, x in X_test.iterrows():
@@ -117,4 +116,4 @@ for k in range(1,100):
 
         accurate.append(akurasi(y_preds, y_test))
 
-    print(f"Accuracy for k={k}: {sum(accurate) / len(accurate):.2f}%")
+    print(f"Accuracy for k={k}: {(max(accurate)):.2f}%")
